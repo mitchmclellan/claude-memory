@@ -13,3 +13,4 @@
 - [Kryptvakt Project](project_kryptvakt.md) — HSM monitoring, Go exporters, CipherTrust CE (VM 109), kryptvakt-dev (VM 108), scripts written not yet run
 - [CipherTrust Manager CE Reference](reference_ciphertrust.md) — ksadmin vs admin account model, WebUI password-change hangs (use API), SSH pubkey requirement, first-boot ksadmin prompt is fatal-if-missed
 - [Lab Redesign May 2026](project_lab_redesign_2026_05.md) — day-trading decommissioned, RAM reallocation table, LXC 104 confirmed gone, hardware risks
+- [gstack Repo URL](reference_gstack_repo.md) — gstack is at github.com/garrytan/gstack (not garryslist), SSH clone only, needs bun for setup
