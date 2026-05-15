@@ -21,3 +21,5 @@
 - [CipherTrust CE API Surface](reference_ciphertrust_api.md) — which /api/v1/* endpoints actually exist on CT Manager CE v2.11.1 (most vendor-docs paths 404)
 - [Kryptvakt Session Bootstrap](reference_kryptvakt_session_bootstrap.md) — load homelab/CLAUDE.md + lab-infra + lab-improvements at start of every kryptvakt session; kryptvakt sits inside the homelab framework
 - [Kryptvakt MVP1 Principles (ADR-001)](project_kryptvakt_mvp1_principles.md) — container as product, multi-protocol ingest baked in Phase 1, quorum scaffolding now, license gate day-one — apply as lens when planning anything kryptvakt
+- [MitchIdeaPad Laptop Env](reference_laptop_env.md) — WSL2 Ubuntu 24.04, NOPASSWD set, Node 20 via NodeSource, codex+gemini at /usr/local/bin, OPENAI_API_KEY at ~/.openai_env
+- [Don't ask Mitch to run multi-line bash](feedback_bash_line_wraps.md) — wrapped commands get parsed as multiple commands and fail; keep under 80 chars or wrap in `sh -c "…"`

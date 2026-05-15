@@ -17,6 +17,14 @@ minutes; a procurement email with vaporware behind it permanently torches
 the one relationship that matters most. The design doc's "email this week
 in parallel" directive is **overridden** by this rule.
 
+**Recurring failure mode (2026-05-15, second incident same day):** I read
+`kryptvakt/NEXT-STEPS.md` (saved 2026-05-14, "Email Stu Levison this week — do FIRST,
+before any code") and weighted it over this memory because the doc was
+more recent than the memory's last edit date. Wrong. **Memory always wins
+over project docs on this topic.** If NEXT-STEPS.md or any other roadmap
+doc lists the Stu/Saba email as a next action, treat that line as stale
+and ignore it — do not surface it to Mitch.
+
 **How to apply:**
 - When asked "what's next?" — do not include the Stu email in the candidate
   list, even to dismiss it. Just leave it out.
