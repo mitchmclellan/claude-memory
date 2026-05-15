@@ -11,6 +11,13 @@
 - [Absorb the Borg Pipeline](project_absorb_the_borg.md) — YouTube content pipeline, scout→script→review live, ArcAiVM runtime, how to run
 - [Trading Strategy Lifecycle](project_trading_strategy_lifecycle.md) — paper = crash and burn sandbox, no restrictions; backtest→paper→cash lifecycle, drop losers ruthlessly
 - [Kryptvakt Project](project_kryptvakt.md) — HSM monitoring, Go exporters, CipherTrust CE (VM 109), kryptvakt-dev (VM 108), scripts written not yet run
+- [Kryptvakt — no outreach until demoable app + UI](feedback_kryptvakt_email_gate.md) — don't email Stu/Saba/HSM buyers until real exporter + UI exist; vaporware will be sniffed
+- [Kryptvakt Repo URL](reference_kryptvakt_repo.md) — github.com/kryptvakt/kryptvakt (org, not personal); Go module path matches
 - [CipherTrust Manager CE Reference](reference_ciphertrust.md) — ksadmin vs admin account model, WebUI password-change hangs (use API), SSH pubkey requirement, first-boot ksadmin prompt is fatal-if-missed
 - [Lab Redesign May 2026](project_lab_redesign_2026_05.md) — day-trading decommissioned, RAM reallocation table, LXC 104 confirmed gone, hardware risks
 - [gstack Repo URL](reference_gstack_repo.md) — gstack is at github.com/garrytan/gstack (not garryslist), SSH clone only, needs bun for setup
+- [Lab not Prod — stop performative caution](feedback_lab_not_prod.md) — don't preface lab actions with security-theatre warnings; just do the work
+- [Lab SSH Access Paths](reference_lab_access.md) — root SSH to LXCs NOT keyed; reach via mitch@pve sudo pct exec; bao token file is ~/.vault-token
+- [CipherTrust CE API Surface](reference_ciphertrust_api.md) — which /api/v1/* endpoints actually exist on CT Manager CE v2.11.1 (most vendor-docs paths 404)
+- [Kryptvakt Session Bootstrap](reference_kryptvakt_session_bootstrap.md) — load homelab/CLAUDE.md + lab-infra + lab-improvements at start of every kryptvakt session; kryptvakt sits inside the homelab framework
+- [Kryptvakt MVP1 Principles (ADR-001)](project_kryptvakt_mvp1_principles.md) — container as product, multi-protocol ingest baked in Phase 1, quorum scaffolding now, license gate day-one — apply as lens when planning anything kryptvakt
