@@ -1,6 +1,6 @@
 ---
 name: Kryptvakt Project
-description: Unified HSM monitoring product — Go Prometheus exporters for CipherTrust, Luna, PayShield. Phase 1 in flight; only active build project
+description: Unified HSM monitoring product — Go Prometheus exporters for CipherTrust, Luna, PayShield. Phases 0–4 all merged to main; only active build project
 type: project
 originSessionId: 351b90a3-9068-4f06-9fc0-e0a7e6205ed8
 ---
@@ -15,17 +15,25 @@ Kryptvakt is Mitch's ONLY active build project. Lab has been fully refocused on 
 - Phase 1 + Phase 2 cmd binaries both scaffolded: `cmd/ct-exporter`, `cmd/luna-exporter`, `cmd/kryptvakt-ui`
 - Internal modules: `internal/{ciphertrust,config,db,fixtures,model}`
 
-## Phase status (as of 2026-05-15)
+## Phase status (as of 2026-05-16 — all on main)
 
 | Phase | Description | Status |
 |---|---|---|
-| 0 | Repo scaffold, Go modules, fixture pattern | ✅ done |
-| 1 | CipherTrust Manager exporter vs VM 109 | 🔧 binary built, REST client done, inventory parser done, VM 109 fixtures captured, `db.UpsertHSM` done; **needs end-to-end run + Prometheus scrape enabled** |
-| 2 | Luna PKCS#11 exporter vs SoftHSM2 | 🔧 `cmd/luna-exporter` scaffolded |
-| 3 | HTMX inventory UI, SQLite-backed | 🔧 `cmd/kryptvakt-ui` scaffolded |
-| 4 | docker-compose, air-gap bundle, demo prep | ⏳ not started |
+| 0 | Repo scaffold, Go modules, fixture pattern, CI on GitHub Actions | ✅ done |
+| 1 | CipherTrust Manager exporter vs VM 109 | ✅ done — live as systemd `ct-exporter.service` on VM 108, scraped by Prometheus, in Grafana |
+| 2 | Luna PKCS#11 exporter vs SoftHSM2 | ✅ done — live as systemd `luna-exporter.service`, multi-vendor dashboard working, honest "DEV PROXY" label per ADR-001 |
+| 3 | HTMX inventory UI, SQLite-backed | ✅ done — live at https://kryptvakt.mitchflix.co.uk, single-admin bcrypt per ADR-002 |
+| 4 | docker-compose + OpenBao credential injection | ✅ done as packaging PR; not yet deployed over the systemd stopgap. Multi-binary image, KRYPTVAKT_ROLE dispatcher, profile-gated services. |
 
-ADRs shipped: ADR-001 (MVP1 scope expansion — container as product, multi-protocol ingest, quorum scaffold, license gate), ADR-002 (MVP1 UI auth scoped down to single admin).
+Trunk is `main`. All weekend feature branches (`ci/expand-triggers`, `phase-1-ciphertrust-exporter`, `phase-2-luna-exporter`, `phase-3-ui`, `phase-4-compose`, `phase-0-scaffold`) deleted from origin and local clones after PR #6 landed (umbrella merge).
+
+Future branches naming convention (CI triggers match all): `feat/<thing>`, `fix/<thing>`, `phase-N-<thing>`.
+
+ADRs shipped: ADR-001 (container as product, multi-protocol ingest, quorum scaffold, license gate), ADR-002 (single-admin UI auth).
+
+## CI
+
+`.github/workflows/ci.yml` on main — `go vet`, `go build`, `go test -race`, golangci-lint v1.61. Triggers on push to `main`/`phase-**`/`ci/**`/`feat/**`/`fix/**`, and on every PR.
 
 ## Lab dev environment (all live)
 
@@ -33,8 +41,8 @@ ADRs shipped: ADR-001 (MVP1 scope expansion — container as product, multi-prot
 |------|------|----|------|
 | 108 | kryptvakt-dev | 192.168.50.108 | Go 1.23 + Docker + SoftHSM2 + node_exporter + Claude Code + gstack. SSH: `mitch@192.168.50.108` |
 | 109 | ciphertrust-ce | 192.168.50.109 | CipherTrust Manager CE k170v-2.11.1. Fully provisioned: admin (WebUI) + ksadmin (console) creds in OpenBao, static IP, DNS resolving, JWT issuance verified |
-| 105 | monitoring | 192.168.50.105 | Prometheus + Grafana. Kryptvakt scrape targets pre-configured but commented-in — uncomment when ct-exporter is running |
-| 107 | openbao | 192.168.50.107 | Secrets. Path `secret/kryptvakt/{ciphertrust,luna,payshield,softhsm}` all seeded |
+| 105 | monitoring | 192.168.50.105 | Prometheus + Grafana. Both kryptvakt scrape jobs LIVE (`kryptvakt_ciphertrust` :9110, `kryptvakt_luna` :9111). 5 kryptvakt alert rules in `/etc/prometheus/rules/kryptvakt.yml` (also tracked at `homelab/prometheus/rules/kryptvakt.yml`). Grafana dashboard uid `kryptvakt-overview` at `monitoring.mitchflix.co.uk/d/kryptvakt-overview` |
+| 107 | openbao | 192.168.50.107 | Secrets. Path `secret/kryptvakt/{ciphertrust,luna,payshield,softhsm,ui}` all seeded (ui added 2026-05-15) |
 | 106 | pihole | 192.168.50.106 | DNS — `kryptvakt-dev.mitchflix.co.uk` → .108, `ciphertrust.mitchflix.co.uk` → .109 |
 
 ## Working knowledge
