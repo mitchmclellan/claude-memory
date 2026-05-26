@@ -6,7 +6,7 @@ originSessionId: 99e8964b-901d-4108-8600-c5cf05b678fb
 ---
 **VM/CT inventory (as of 2026-05-13):**
 - VM 102 `traefik` (192.168.50.2, 512MB RAM) — Traefik v3.0. Hardened. node_exporter :9100.
-- VM 103 `ArcAiVM` (192.168.50.196, 4GB RAM) — ACTIVE. Ollama+OpenWebUI+Neo4j+OpenClaw+arcai-bot. Dead projects archived. gstack dispatch routing in OpenClaw AGENTS.md.
+- VM 103 `ArcAiVM` (192.168.50.196, 4GB RAM, 3GB ballooned) — ACTIVE. Ollama+OpenWebUI+Neo4j+arcai-bot. OpenClaw RETIRED 2026-05-26 (user systemd unit deleted; npm pkg + ~/.openclaw config dir retained for archive only). 4GB is too small for 7-8B Ollama models (OOM on load); GPU has 7.8GB free VRAM but system RAM is the bottleneck. arcai-bot remains on Anthropic Sonnet — Ollama routing is documented-as-unfunded until RAM expansion.
 - VM 108 `kryptvakt-dev` (192.168.50.108, 4GB RAM) — Shell created. Ubuntu install needed via PVE console.
 - VM 109 `ciphertrust-ce` (192.168.50.109, 8GB RAM) — Shell created (80GB ai-storage). Thales download needed.
 - LXC 105 `monitoring` (192.168.50.105, 1.5GB RAM) — Prometheus 5/5 targets. Kryptvakt targets commented-in.
@@ -18,16 +18,12 @@ originSessionId: 99e8964b-901d-4108-8600-c5cf05b678fb
 - Bun 1.3.14 at `~/.bun/bin/bun`
 - Skills available: /office-hours, /autoplan, /review, /cso, /ship, /investigate, etc.
 
-**OpenClaw gstack integration (ArcAiVM):**
-- 4 native skills in `~/.openclaw/plugin-skills/`: office-hours, ceo-review, investigate, retro
-- gstack dispatch routing in `~/.openclaw/workspace-claude/AGENTS.md`
-- gstack-lite/full/plan CLAUDE.md in `~/.openclaw/workspace-claude/`
-- Restart: `systemctl --user restart openclaw.service` on ArcAiVM
+**OpenClaw on ArcAiVM:** RETIRED 2026-05-26 (per audit: bot bypassed it entirely, main agent dormant 16 days, GPU stranded). Service unit deleted, autostart removed. Plugin-skills + gateway no longer reachable from ArcAiVM. The npm package + `~/.openclaw/` config dir kept on disk as archive; reactivation would require fresh systemd unit + Ollama model that fits in 4GB.
 
-**ArcAiVM services:**
-- Ollama (GPU, localhost:11434), OpenWebUI (:3000 LAN), Neo4j (:7474/:7687 LAN)
-- OpenClaw gateway (:18789 LAN), arcai-bot Telegram relay
-- Models: qwen2.5-coder:7b (PRIMARY)
+**ArcAiVM services (post-retirement):**
+- Ollama (GPU, localhost:11434) — installed, llama3.1:8b + qwen2.5-coder:7b downloaded, currently UNUSED. Bot does not dispatch through it (RAM-bound; see ArcAiVM line above).
+- OpenWebUI (:3000 LAN), Neo4j (:7474/:7687 LAN) — running but not actively driven.
+- arcai-bot Telegram relay — v3, direct Anthropic Sonnet (claude-sonnet-4-6).
 - Dead: day-trading, weather-app, absorb-the-borg (all archived ~/\*.archived)
 
 **Prometheus state:** 5 targets (pve-host, arcaivm, traefik, monitoring, nvidia-dcgm). No trading targets. TradingKillSwitch rule removed.

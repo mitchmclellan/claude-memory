@@ -2,16 +2,18 @@
 
 - [Mitch Profile](user_mitch.md) — who Mitch is, background, work style, email
 - [Work Style Feedback](feedback_workstyle.md) — act autonomously, document blockers in lab-improvements.md, don't wait
-- [Homelab Current State](project_lab_state.md) — ArcAiVM 16GB/8vCPU, GPU+models running, LXCs 101+104 deleted, strategy.md written
+- [Homelab Current State](project_lab_state.md) — ArcAiVM 4GB (3GB ballooned), Ollama installed but unused (RAM-bound), OpenClaw retired 2026-05-26, bot stays on Sonnet
 - [Lab Reference Pointers](reference_lab.md) — PVE UI, infra docs, network device IPs
-- [Docs Freshness Rule](feedback_docs_freshness.md) — strategy.md/lab-infra.md/lab-improvements.md must always be updated at end of every session that changes the lab
+- [Docs Freshness Rule](feedback_docs_freshness.md) — lab docs AND project CONTEXT.md/NEXT-STEPS.md must always be updated at end of any session that touches the area; gstack skill artifacts are NOT a substitute
 - [Test the Right Network Path](feedback_testing_paths.md) — PVE host uses Pi-hole DNS; user devices may use different DNS; always simulate the user's actual path before reporting fixed
 - [DNS and Internal Routing Architecture](project_dns_routing.md) — Pi-hole+Traefik stack, router DHCP DNS config, Android Private DNS bypass problem and fix
-- [Model Routing Convention](feedback_model_routing.md) — infra/maintenance → Telegram bot (Qwen, free); building apps → Claude Code (Sonnet)
+- [Model Routing Convention](feedback_model_routing.md) — bot stays on Sonnet (Ollama routing was unfunded: ArcAiVM only 4GB); building apps → Claude Code (Sonnet)
 - [Absorb the Borg Pipeline](project_absorb_the_borg.md) — YouTube content pipeline, scout→script→review live, ArcAiVM runtime, how to run
 - [Trading Strategy Lifecycle](project_trading_strategy_lifecycle.md) — paper = crash and burn sandbox, no restrictions; backtest→paper→cash lifecycle, drop losers ruthlessly
 - [Kryptvakt Project](project_kryptvakt.md) — HSM monitoring, Go exporters, CipherTrust CE (VM 109), kryptvakt-dev (VM 108), scripts written not yet run
-- [Kryptvakt — no outreach until demoable app + UI](feedback_kryptvakt_email_gate.md) — don't email Stu/Saba/HSM buyers until real exporter + UI exist; vaporware will be sniffed
+- [Kryptvakt Heimdall — Phase 3 agent + Norse-naming theme](project_kryptvakt_heimdall.md) — embedded-expertise BYO-LLM agent; non-negotiable architectural stances; build after Tier 1+2 sources
+- [Heimdall dev-substrate already exists on ArcAiVM](project_heimdall_dev_substrate.md) — Ollama+GPU+open-webui+Neo4j is latent Heimdall-dev infra; v1 SQLite tools, v1.5+ Neo4j graph for multi-framework correlation
+- [Kryptvakt — no UK enterprise outreach until post-move AB exists](feedback_kryptvakt_email_gate.md) — bar strengthened 2026-05-18: no Stu/Saba/HSBC/UK contact until relocation + Swedish AB; stealth-build stance in kryptvakt/CONTEXT.md
 - [Kryptvakt Repo URL](reference_kryptvakt_repo.md) — github.com/kryptvakt/kryptvakt (org, not personal); Go module path matches
 - [CipherTrust Manager CE Reference](reference_ciphertrust.md) — ksadmin vs admin account model, WebUI password-change hangs (use API), SSH pubkey requirement, first-boot ksadmin prompt is fatal-if-missed
 - [Lab Redesign May 2026](project_lab_redesign_2026_05.md) — day-trading decommissioned, RAM reallocation table, LXC 104 confirmed gone, hardware risks
@@ -23,3 +25,12 @@
 - [Kryptvakt MVP1 Principles (ADR-001)](project_kryptvakt_mvp1_principles.md) — container as product, multi-protocol ingest baked in Phase 1, quorum scaffolding now, license gate day-one — apply as lens when planning anything kryptvakt
 - [MitchIdeaPad Laptop Env](reference_laptop_env.md) — WSL2 Ubuntu 24.04, NOPASSWD set, Node 20 via NodeSource, codex+gemini at /usr/local/bin, OPENAI_API_KEY at ~/.openai_env
 - [Don't ask Mitch to run multi-line bash](feedback_bash_line_wraps.md) — wrapped commands get parsed as multiple commands and fail; keep under 80 chars or wrap in `sh -c "…"`
+- [Kryptvakt auth defaults to appliance-style](feedback_kryptvakt_appliance_auth.md) — admin:admin + force change on first login; SQLite-backed bcrypt; do NOT propose env-var-only or OpenBao-templated auth reverts
+- [Use gstack browse for UI/auth/cookie flows](feedback_browser_test_ui_flows.md) — curl ignores Secure-on-HTTP and follows redirects automatically; cannot detect browser-only failure modes; use ~/.claude/skills/gstack/browse/dist/browse instead
+- [Don't checklist tasks I have access to](feedback_do_not_checklist_when_you_have_access.md) — when I have SSH/write/exec access and the user gave direction, execute it myself; "you should..." instructions are a tell I'm dodging work
+- [No rest / sleep / wind-down sign-offs](feedback_no_rest_talk.md) — don't tell Mitch to rest or sleep; end on the work, not on performative care
+- [Codex same-day ADR challenge pattern](feedback_codex_same_day_adr_challenge.md) — run /codex against new strategic ADRs same-day; if 2+ premises break, supersede via new ADR rather than edit in place
+- [DORA RTS structure domain trap](reference_dora_rts_structure.md) — DORA L1 Articles ≠ JC 2023 86 RTS Articles; crypto obligations are RTS Art 6+7 mandated by DORA L1 Art 15+16
+- [Vendor portal signups pending](project_vendor_signups_pending.md) — Utimaco + Thales DPoD submitted 2026-05-26, do NOT poll Mitch; he'll volunteer when access lands
+- [Kryptvakt IONOS VPS state](project_kryptvakt_vps_ionos.md) — 185.132.43.4 hardened by prior session 2026-05-25, reimaged 2026-05-26; scripts ready to re-run once Mitch's IONOS firewall is open
+- [Session handoff audit rule](feedback_session_handoff_audit.md) — before claiming infra work undone, grep prior jsonls; created after the IONOS gaslighting incident

@@ -15,21 +15,37 @@ Kryptvakt is Mitch's ONLY active build project. Lab has been fully refocused on 
 - Phase 1 + Phase 2 cmd binaries both scaffolded: `cmd/ct-exporter`, `cmd/luna-exporter`, `cmd/kryptvakt-ui`
 - Internal modules: `internal/{ciphertrust,config,db,fixtures,model}`
 
-## Phase status (as of 2026-05-16 — all on main)
+## Phase status (as of 2026-05-19)
 
 | Phase | Description | Status |
 |---|---|---|
 | 0 | Repo scaffold, Go modules, fixture pattern, CI on GitHub Actions | ✅ done |
-| 1 | CipherTrust Manager exporter vs VM 109 | ✅ done — live as systemd `ct-exporter.service` on VM 108, scraped by Prometheus, in Grafana |
-| 2 | Luna PKCS#11 exporter vs SoftHSM2 | ✅ done — live as systemd `luna-exporter.service`, multi-vendor dashboard working, honest "DEV PROXY" label per ADR-001 |
-| 3 | HTMX inventory UI, SQLite-backed | ✅ done — live at https://kryptvakt.mitchflix.co.uk, single-admin bcrypt per ADR-002 |
-| 4 | docker-compose + OpenBao credential injection | ✅ done as packaging PR; not yet deployed over the systemd stopgap. Multi-binary image, KRYPTVAKT_ROLE dispatcher, profile-gated services. |
+| 1 | CipherTrust Manager exporter vs VM 109 | ✅ done — was standalone `ct-exporter.service`, now subsumed by Phase 1d unified `kryptvakt.service` |
+| 2 | Luna PKCS#11 exporter vs SoftHSM2 | ✅ done — was standalone `luna-exporter.service`, now subsumed by Phase 1d unified `kryptvakt.service` |
+| 3 | HTMX inventory UI, SQLite-backed | ✅ done — was standalone `kryptvakt-ui.service`, now subsumed by Phase 1d unified `kryptvakt.service` |
+| 4 | docker-compose + OpenBao credential injection | ✅ done as packaging PR; never deployed. Superseded by Phase 1d unified binary approach. |
+| 1b | Canonical model + driver framework + license gate + audit chain + reconciliation + lifecycle retirement + unified `kryptvakt` cobra binary | ✅ merged to main `cab16fc` on 2026-05-19. 16 lane commits, 4 /cso passes. |
+| 1c | UI read-path cutover (ListDevices+derived Status) + admin auth refactor (appliance default + change on first login) + cookie auto-detect + sign-out display fix + migration 0004 drops legacy hsms | ✅ merged to main `e692c55` on 2026-05-19. 6 commits. devices+sources is the SOLE inventory source of truth; hsms table dropped. |
+| 1d step 1 | `kryptvakt run --with-ct --with-luna --with-ui` (`--all`) subsumes the three standalone binaries as concurrent goroutines in one process. License loading degrades gracefully on dev/lab builds (no embedded pubkey). | ✅ on branch `phase-1d-run-scrapers` (`c1e87e3` → `c7c1bce` → `2c1945e`), deployed to VM 108 as single systemd unit `kryptvakt.service`. Old three units stopped + disabled (binaries kept for rollback). |
 
-Trunk is `main`. All weekend feature branches (`ci/expand-triggers`, `phase-1-ciphertrust-exporter`, `phase-2-luna-exporter`, `phase-3-ui`, `phase-4-compose`, `phase-0-scaffold`) deleted from origin and local clones after PR #6 landed (umbrella merge).
+Trunk is `main`. Feature branches deleted from origin + local after merge: `phase-1b-canonical-model` (2026-05-19), `phase-1c-ui-cutover` (2026-05-19). Currently open: `phase-1d-run-scrapers` (pending merge). Naming convention: `feat/<thing>`, `fix/<thing>`, `phase-N-<thing>`.
 
-Future branches naming convention (CI triggers match all): `feat/<thing>`, `fix/<thing>`, `phase-N-<thing>`.
+ADRs shipped: ADR-001 (container as product, multi-protocol ingest, quorum scaffold, license gate), ADR-002 (single-admin UI auth — **evolved 2026-05-19 to appliance default + change on first login; see below**), ADR-003 (canonical model + flavour taxonomy + three-layer storage + driver interface, 2026-05-18).
 
-ADRs shipped: ADR-001 (container as product, multi-protocol ingest, quorum scaffold, license gate), ADR-002 (single-admin UI auth).
+**Audit signer V1 posture (decided 2026-05-19):** Phase 1b ships an in-process file-backed Ed25519 SidecarSigner at `internal/audit/filesigner.go`, NOT the kryptvakt-audit co-process binary the design called for under /cso F-4. The interface (`SidecarSigner`/`SidecarReader`) is stable so the co-process swap is a drop-in; the V1 posture trades F-4 OS-level user separation for shipping speed. Future sessions: do NOT propose ripping out `filesigner.go` — propose ADDING `cmd/kryptvakt-audit/` alongside.
+
+**ADR-002 evolution — UI admin auth (merged to main 2026-05-19 as part of `e692c55`):** Standard appliance pattern: default `admin:admin`, force change on first login via a SQLite-backed bcrypt hash (migration `0003_ui_admin`, single-row CHECK id=1, `is_default` flag). The daemon seeds the row on first startup; `requireSession` middleware force-redirects to `/change-password` while `is_default=1`. `KRYPTVAKT_UI_ADMIN_PASSWORD` env is OPTIONAL — when set, used as the seed value instead of `"admin"`; once changed via the UI, env is ignored. Future sessions: do NOT propose reverting to env-var-only or OpenBao-templated auth — see `feedback_kryptvakt_appliance_auth.md`.
+
+**Cookie Secure auto-detect (merged with Phase 1c):** `setSessionCookie` reads request scheme from `r.TLS` / `X-Forwarded-Proto` and sets the Secure flag accordingly. `cfg.CookieSecure=true` remains as the explicit operator override. Prevents the bug class where direct-HTTP-IP deployments silently drop sessions because Secure cookies require HTTPS.
+
+**Production deployment on VM 108 (as of 2026-05-19, after Phase 1d step 1):**
+- Single systemd unit: `kryptvakt.service` runs `~/workspace/kryptvakt/bin/kryptvakt run --all` (EnvironmentFile loads `/etc/kryptvakt/{ct-exporter,luna-exporter,ui}.env`)
+- Workloads in-process: CT scraper (:9110), Luna scraper (:9111), UI (:9120). All share one SQLite at `/var/lib/kryptvakt/kryptvakt.db`
+- Three old units (`ct-exporter`, `luna-exporter`, `kryptvakt-ui`) stopped + disabled; binaries kept at `~/workspace/kryptvakt/bin/*.pre-1c-final` for rollback
+- `ui.env`: `KRYPTVAKT_UI_ADMIN_PASSWORD` commented out (Mitch changed it via UI); `KRYPTVAKT_UI_COOKIE_SECURE=false` (lab HTTP-only deploy; auto-detect makes this a no-op but it's explicit). Backups at `ui.env.pre-1c.bak`
+- `hsms` table dropped (migration 0004 applied); current tables: audit_chain, cert_key_bindings, cert_revocations, certificates, cross_source_links, devices, events, keys, licenses, partitions, policies, pqc_assessments, schema_migrations, sources, ui_admin, verifier_state
+
+**Active branch posture:** Phase 1c merged. `phase-1d-run-scrapers` open with 3 commits (unified daemon + graceful license-degrade + docs); awaiting visual verify before merge. Next-priority queued items (per kryptvakt/NEXT-STEPS.md): license-gate wiring around scraper Poll calls; deprecate `cmd/ct-exporter` / `cmd/luna-exporter` / `cmd/kryptvakt-ui` after unified-binary uptime proves out; scraper retirement integration; `kryptvakt-audit` co-process binary (/cso gated).
 
 ## CI
 

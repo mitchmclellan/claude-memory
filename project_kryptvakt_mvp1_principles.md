@@ -68,3 +68,9 @@ patching — acceptable for MVP1 if yes, but document the threat model).
 Mitch's direction is firm: he is prepared to defend this scope against
 `/plan-ceo-review` if challenged. Treat the principles as load-bearing
 when planning, not as "soft preference".
+
+**Phase 1b progress against principles (2026-05-19, on main as `cab16fc`):**
+- **#1 container line:** Phase 4 already shipped docker-compose; unified `kryptvakt` binary lives inside it. ✅
+- **#2 multi-protocol ingest:** Driver framework + 5 flavour stubs (monitoring / logging / pki / clm / ssh) + supervisor + sentinel errors landed. Actual SNMP/syslog *listeners* are stub-only — the plumbing is in place, the parsers are not.
+- **#3 kryptvakt-quorum scaffolding:** Supervisor + backoff schedule landed. Node identity / static peer list / heartbeat / NTP-drift log still NOT shipped — gap against the principle. Pending in Phase 1c+.
+- **#4 license gate:** `internal/license` shipped with JWT verification, 60s TTL cache, signed revocations, trial seed-from-compile-time-JWT. CheckEntitlement API exists; **no driver actually calls it yet** — the driver supervisor + license-gated scrape loop wiring is post-merge follow-up. The gate exists; the enforcement isn't wired.

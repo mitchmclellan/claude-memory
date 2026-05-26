@@ -1,60 +1,67 @@
 ---
-name: DNS and Internal Routing Architecture
-description: How internal *.mitchflix.co.uk routing works — current state (Pi-hole still up, but NOT router-wide); hosts-file pattern on Mitch's devices
-type: project
-originSessionId: 351b90a3-9068-4f06-9fc0-e0a7e6205ed8
+name: dns-and-internal-routing-architecture
+description: "How internal *.mitchflix.co.uk routing works — Pi-hole authoritative single-file, laptop hosts-file mirror, Cloudflare public-only"
+metadata: 
+  node_type: memory
+  type: project
+  originSessionId: 6200e8af-5342-4e69-8b29-45bf060a1140
 ---
-All *.mitchflix.co.uk subdomains are internal-only — Mitch wants **zero internal hostnames in public DNS** (cloud VPS handles anything public-facing). Reconfirmed 2026-05-16.
 
-## Current state (2026-05-16, after Asus speed-issue rollback)
+All `*.mitchflix.co.uk` subdomains are internal-only — Mitch wants **zero internal hostnames in public DNS** (public surface lives on the IONOS VPS only). Reconfirmed 2026-05-26.
 
-- **Router (192.168.50.1, ASUS)**: DHCP DNS reverted to ISP/1.1.1.1 — NOT pointing at Pi-hole anymore. Setting router-wide DNS to LAN-side IP was halving home internet speed (almost certainly Asus router disabling HW NAT acceleration when DNS goes to a LAN address — well-documented quirk). Wife escalation.
-- **Pi-hole (192.168.50.106, LXC 106)**: Still running, healthy, sub-millisecond responses, but no longer in the router DNS chain. Local DNS records preserved (12 entries: mitchflix.co.uk + 10 Traefik subdomains + kryptvakt). Available as a manual DNS target if needed.
-- **Traefik (192.168.50.2, VM 102)**: Unchanged. Routes by Host header → backend services. Config at `/home/mitch/traefik/config/ai.yml`. TLS via Cloudflare DNS challenge.
-- **Mitch's laptop**: Windows hosts file + WSL `/etc/hosts` both have the mitchflix.co.uk block (managed between `# BEGIN mitchflix.co.uk` / `# END mitchflix.co.uk` markers). Chrome + WSL processes resolve correctly.
-- **Mitch's phone**: No internal resolution — accepts breakage until needed; not worth fighting Android Private DNS for the few times a year he hits internal services from mobile.
+## Three layers, one source of truth
 
-## Pi-hole was diagnosed innocent on 2026-05-16
+1. **Pi-hole (LXC 106, 192.168.50.106)** — **authoritative** for the lab hostname list. Single canonical file at `/etc/pihole/hosts/mitchflix-local.conf` (24 records as of 2026-05-26). `custom.list` no longer carries mitchflix entries — consolidated 2026-05-26 to eliminate drift. Edit-and-SIGHUP cycle: `pkill -HUP pihole-FTL` after changes.
 
-- LXC 106: 2 cores / 512MB / 7.8GB, using ~15% RAM, load 0.34 — not a resource problem
-- pihole-FTL running 6+ days, 25MB RSS
-- Upstream: 1.1.1.1 + 1.0.0.1 (Cloudflare)
-- Query latency: **0ms cached, faster than direct 1.1.1.1 (18ms)** — DNS itself is fast
-- Gravity: 4.6MB — normal
-- Conclusion: speed regression was the **Asus router**, not Pi-hole. Routing all home traffic through a LAN-side DNS server disables HW NAT/CTF acceleration on many Asus firmwares. Fix would be router-side (enable NAT Acceleration, possibly toggle AiProtection), not Pi-hole-side. **Not pursuing** the router fix because the hosts-file approach is good enough for Mitch's needs.
+2. **WSL `/etc/hosts`** (MitchIdeaPad, Ubuntu 24.04) — managed block between `# BEGIN mitchflix.co.uk` / `# END mitchflix.co.uk`. **`generateHosts = false` is set in `/etc/wsl.conf`** as of 2026-05-26 so WSL does not regenerate `/etc/hosts` on every boot (this had been silently nuking the block).
 
-## Mitch's `*.mitchflix.co.uk` subdomain list (canonical, 2026-05-16)
+3. **Windows hosts file** (`C:\Windows\System32\drivers\etc\hosts`) — same managed block as WSL. Updated via self-elevating PowerShell script at `C:\Users\mitch\Desktop\Update-MitchflixHosts.ps1` (reads block source from `C:\Users\mitch\Desktop\hosts-mitchflix-block.txt`, replaces the managed block, flushes DNS, prints resolution test). Right-click → Run with PowerShell, accept UAC.
 
-All → `192.168.50.2` (Traefik) unless noted:
+## Why this layout
 
-- `mitchflix.co.uk` (apex)
-- `ai.mitchflix.co.uk` (OpenWebUI)
-- `openclaw.mitchflix.co.uk`
-- `monitoring.mitchflix.co.uk` (Grafana)
-- `prometheus.mitchflix.co.uk`
-- `weather.mitchflix.co.uk`
-- `pve.mitchflix.co.uk`
-- `traefik.mitchflix.co.uk`
-- `neo4j.mitchflix.co.uk`
-- `openbao.mitchflix.co.uk`
-- `kryptvakt.mitchflix.co.uk`
-- `ciphertrust.mitchflix.co.uk` → `192.168.50.109` (direct, ksadmin UI)
-- `kryptvakt-dev.mitchflix.co.uk` → `192.168.50.108` (direct, dev VM)
+- **Router DHCP DNS is NOT pointing at Pi-hole** (reverted 2026-05-16 — Asus router halves WAN speed when LAN-side DNS is primary; HW NAT/CTF acceleration disables). Other home devices use ISP DNS / 1.1.1.1.
+- **Mitch's laptop is the only device that needs internal hostnames**, hence hosts-file mirror on both sides (WSL terminal + Windows Chrome). Phone, Fire TV, etc. accept the breakage.
+- **Pi-hole stays running** because (a) it's the human-editable source-of-truth list, (b) PVE host + lab VMs still query it as their DNS resolver, (c) cheap insurance if router DHCP ever points back.
 
-## When new subdomains land
+## Cloudflare DNS (public zone)
 
-Updating Pi-hole *and* both hosts files (WSL + Windows). Pi-hole records are still authoritative for the lab list; the hosts files are Mitch-laptop-only mirrors. The block on each side is delimited by `# BEGIN mitchflix.co.uk` / `# END mitchflix.co.uk` for clean idempotent updates.
+- Zone: `mitchflix.co.uk` (zone ID `83365d660ef1732dda78337ef4642ce2`)
+- Records: apex (GitHub Pages) + email (DMARC/DKIM/SPF). **No subdomain A/CNAME records.**
+- Future addition: `kryptvakt-edge.mitchflix.co.uk` → IONOS VPS public IP, A record, **proxy OFF (DNS-only/grey)** — proxy=on would break SSH/Teleport/EJBCA REST. Added once MITCH-36 completes and IP is known.
 
-## Cloudflare DNS
+## `kryptvakt.{com,io,dev}` — stays at GoDaddy
 
-Only has records for `mitchflix.co.uk` apex → GitHub Pages + email (DMARC/DKIM/SPF). No subdomain A/CNAME records. Zone ID: `83365d660ef1732dda78337ef4642ce2`. **Hard rule per Mitch (2026-05-16):** internal hostnames stay out of public DNS until/unless there's a specific resource we want to show off publicly.
+Parked, WHOIS-privacy. **Do not migrate to Cloudflare until launch** — the migration is part of the `kryptvakt/REFERENCE.md` Step 6.5 post-AB activation runbook. Pre-migrating gains nothing; stealth-build rule trumps registrar convenience. Reconfirmed 2026-05-26.
 
-## Android Private DNS (legacy)
+## Adding a new internal hostname (the routine)
 
-DoT proxy stunnel4 on Pi-hole LXC 106 :853 — still configured (cert auto-renews via certbot). Useful if Mitch ever wants his phone back on the lab's DNS without router involvement. Not in active use.
+1. Edit `/etc/pihole/hosts/mitchflix-local.conf` on LXC 106. Add line. `pkill -HUP pihole-FTL`.
+2. Add the same line to the managed block in WSL `/etc/hosts`.
+3. Update `C:\Users\mitch\Desktop\hosts-mitchflix-block.txt` (add line). Mitch runs `Update-MitchflixHosts.ps1` to sync Windows hosts + flush DNS.
+4. Chrome restart (or `chrome://net-internals/#dns` → Clear host cache) to dump Chrome's own resolver cache.
 
-## How to apply
+## Canonical hostname list (2026-05-26)
 
-When something on Mitch's laptop can't resolve a mitchflix.co.uk hostname: check the block in `/etc/hosts` (WSL) and `C:\Windows\System32\drivers\etc\hosts` (Windows) — both should mirror Pi-hole's record set. If the subdomain isn't in either, add it to both AND to Pi-hole (`PUT http://192.168.50.106/api/config/dns/hosts/{url-encoded entry}` with Pi-hole API auth).
+Traefik-fronted (→ 192.168.50.2): `ai`, `openclaw`, `monitoring`, `prometheus`, `traefik`, `weather`, `nas`, `plex`, `portainer`, `neo4j`, `openbao`, `kryptvakt`
 
-For Mitch's phone or other home devices: accept the breakage. Don't suggest re-enabling router-wide DNS — it'll re-trigger the Asus speed issue and family will be cross.
+Host-direct:
+- `pve.mitchflix.co.uk` → 192.168.50.10
+- `monitoring-host.mitchflix.co.uk` → 192.168.50.105 (LXC 105 direct, not Grafana — that's `monitoring`)
+- `pihole.mitchflix.co.uk` / `dns.mitchflix.co.uk` → 192.168.50.106
+- `arcaivm.mitchflix.co.uk` → 192.168.50.196
+- `nas-host.mitchflix.co.uk` → 192.168.50.24
+
+Kryptvakt scrape sources (direct):
+- `kryptvakt-dev.mitchflix.co.uk` → 192.168.50.108
+- `ciphertrust.mitchflix.co.uk` → 192.168.50.109
+
+Tier 1 PKI lab (LXC 110):
+- `pki-lab.mitchflix.co.uk` / `vault.mitchflix.co.uk` / `ejbca.mitchflix.co.uk` → 192.168.50.110
+
+## Diagnosing NXDOMAIN on Mitch's laptop
+
+The single highest-likelihood cause is the Windows hosts file managed block being **either missing or commented-out** (every line prefixed with `#`). Pi-hole isn't in the laptop's resolver chain. Check `C:\Windows\System32\drivers\etc\hosts` for live (uncommented) entries between the BEGIN/END markers; if any line starts with `#`, that's the bug. Fix with the staged PS1 script. After updating, also `ipconfig /flushdns` and restart Chrome (or clear `chrome://net-internals/#dns`).
+
+For WSL CLI tools (curl, dig, ssh): check `/etc/hosts` for the same managed block. If missing, append. Also verify `[network] generateHosts = false` is in `/etc/wsl.conf` so the block survives `wsl --shutdown`.
+
+See also: [[reference_laptop_env.md]] for WSL2/NodeSource setup; [[feedback_testing_paths.md]] for "always simulate Mitch's actual access path" rule.
