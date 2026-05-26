@@ -66,6 +66,29 @@ If matches are found and the activity isn't in [[MEMORY.md]]: this is a handoff 
 
 Memory writes are cheap. Sessions ending without them are expensive — they break Mitch's trust.
 
+## Memory push discipline (added 2026-05-26 — DR audit found 11 days of memory writes had never been pushed to remote)
+
+**Writing to disk is not enough. The memory dir at `/home/mitch/.claude/projects/-home-mitch-workspace/memory/` is a git repo with remote `github.com:mitchmclellan/claude-memory.git`. Local-only memory dies with the laptop.**
+
+After any memory write (new file or edit), run:
+
+```sh
+cd /home/mitch/.claude/projects/-home-mitch-workspace/memory/
+git add -A
+git commit -m "<one-line summary of what changed and why>"
+git push origin main
+```
+
+A good commit message names the new/changed memory files and gives the one-line context. Example:
+> `project_kryptvakt_vps_ionos: post-reimage minimal state with claude user + sudo NOPASSWD; OpenBao creds at secret/lab/vps-ionos v1`
+
+**Why this matters:** Discovered 2026-05-26 during a DR audit that no memory had been pushed since 2026-05-15 — 11 days of memory writes existed only on the laptop. If the laptop drive had died in that window, every memory written during those 11 days would have been lost (including the entire kryptvakt VPS context, the AD CS provisioning, the EJBCA cert work, and several feedback rules). The "auto-memory" system writes to disk but does not push — that's MY job after every write.
+
+**When to skip the push** (rare exceptions):
+- Mid-conversation, writing 3 related memories — push once after the last one rather than 3 separate pushes
+- The change is genuinely trivial (typo fix) — even then, batch it with the next real write
+- Network-disconnected (the laptop is on WSL with no internet) — queue the push when connectivity returns; mention to Mitch you'll push later
+
 ## Reinforces
 
 - [[feedback_docs_freshness.md]] — lab docs + project CONTEXT.md must be updated end-of-session. This memory is the same principle applied to MEMORY.md.
