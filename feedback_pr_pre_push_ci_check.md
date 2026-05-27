@@ -51,6 +51,22 @@ The bar for "ready for merge" is **every test plan checkbox checked**, or **expl
 
 When attempting live integration uncovers a lab-side blocker (truststore config, DCOM permissions, etc.) document the SPECIFIC blocker in the PR body, list the resolution paths, mark the box `⚠️` not `[ ]` so the gap is loud.
 
+## `gh pr edit --body` can fail silently (added 2026-05-27)
+
+Third incident on the same PRs: I "updated" PR bodies twice with `gh pr edit --body "..."` and `gh pr edit --body-file ...`, both returned warnings but the body did NOT actually update. The warning text:
+
+> `GraphQL: Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. (repository.pullRequest.projectCards)`
+
+`gh` reads `projectCards` as part of the PR-edit flow; that GraphQL field is being retired, and the failure aborts the entire update silently from the user's perspective. Mitch caught it because the test-plan checkboxes still showed `[ ]` instead of `[x]`.
+
+**Workaround that works:** hit the REST endpoint directly, bypassing the projects fetch:
+
+```sh
+gh api --method PATCH /repos/<owner>/<repo>/pulls/<N> -F body=@/path/to/body.md
+```
+
+**Always verify after editing:** `gh pr view <N> --json body -q .body | grep -E '^\s*-\s*\['` and confirm the boxes are what you expect. Don't trust `gh pr edit` to succeed silently.
+
 ## What CI actually runs in kryptvakt
 
 From `.github/workflows/` (per memory of past runs):
