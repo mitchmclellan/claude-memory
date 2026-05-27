@@ -34,3 +34,4 @@
 - [Vendor portal signups pending](project_vendor_signups_pending.md) — Utimaco + Thales DPoD submitted 2026-05-26, do NOT poll Mitch; he'll volunteer when access lands
 - [Kryptvakt IONOS VPS state](project_kryptvakt_vps_ionos.md) — 185.132.43.4 hardened by prior session 2026-05-25, reimaged 2026-05-26; scripts ready to re-run once Mitch's IONOS firewall is open
 - [Session handoff audit rule](feedback_session_handoff_audit.md) — before claiming infra work undone, grep prior jsonls; created after the IONOS gaslighting incident
+- [Pre-push CI check](feedback_pr_pre_push_ci_check.md) — run gofmt -l AND gh pr checks before declaring a PR ready; lint is a separate CI job from build+test
