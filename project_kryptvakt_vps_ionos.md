@@ -1,13 +1,13 @@
 ---
-name: kryptvakt-ionos-vps-185-132-43-4-current-post-reimage-state-2026-05-26-18-53z
-description: "IONOS VPS 6-8-240 (Ubuntu 26.04) at 185.132.43.4. Reimaged 2026-05-26 evening after a prior session bricked it via aggressive ufw + key-only hardening. THIS session set up minimal access — claude user with sudo NOPASSWD as the default SSH target; root + spearclock password preserved as Mitch's fallback. No bootstrap, no Vault, no Teleport, no ufw run yet. Full state in OpenBao `secret/lab/vps-ionos` v1."
-metadata: 
+name: kryptvakt-ionos-vps-185-132-43-4-current-state
+description: "IONOS VPS 6-8-240 (Ubuntu 26.04) at 185.132.43.4. Vault CE v2.0.1 + Teleport CE v18.8.2 active as of 2026-05-27 11:44Z. Default SSH `claude@185.132.43.4` (sudo NOPASSWD); root+spearclock break-glass preserved. Vault init keys at OpenBao `secret/lab/vps-vault/init` v2; Teleport admin invite URL pending Mitch enrolment."
+metadata:
   node_type: memory
   type: project
   originSessionId: 6200e8af-5342-4e69-8b29-45bf060a1140
 ---
 
-## Access (current, verified working from PVE)
+## Access (verified working 2026-05-27)
 
 **Default path (Claude uses this — NOT root):**
 ```sh
@@ -21,52 +21,63 @@ ssh root@185.132.43.4
 # password: spearclock — Mitch-set on IONOS panel; do NOT rotate without telling Mitch
 ```
 
-Both paths verified working 2026-05-26 18:53Z (this session). Root password and key both stored in `secret/lab/vps-ionos` v1.
+Both paths in OpenBao `secret/lab/vps-ionos` v1. **Host key rotated on the 2026-05-26 reimage** — if you see a key-mismatch warning, `ssh-keygen -R 185.132.43.4` and accept the new key; this is documented expected drift.
 
-## OpenBao secret structure (`secret/lab/vps-ionos` v1)
+## Services
 
-Source of truth for VPS access. If anything here drifts from reality, the OpenBao record wins until proven otherwise. 22 fields including: `host_ip`, `root_password`, `admin_user=claude`, `admin_user_pubkey_label=claude@pve`, `default_ssh_target=claude@185.132.43.4`, `fallback_ssh_target=root@185.132.43.4`, `sshd_config_modified=false`, `ufw_state=inactive`, `cloud_init_disabled=false`, `bootstrap_run=false`, `set_up_at=2026-05-26T18:53Z`, `set_up_session_jsonl=<path>`.
+**Vault CE v2.0.1** (`/usr/bin/vault`, systemd `vault.service`)
+- Listener: `127.0.0.1:8200` (loopback only, no public exposure)
+- Storage: file backend at `/var/lib/vault/data`
+- TLS: disabled (loopback only — reach via SSH tunnel)
+- Status: initialised + unsealed + PKI engine mounted at `/pki` with a 10-year root CA
+- Init secrets in OpenBao at `secret/lab/vps-vault/init` v2 (root token + 5 unseal keys, 3-of-5 threshold). v1 was the stale pre-reimage copy; overwritten 2026-05-27 11:43Z.
+- Tunnel to reach UI from PVE / laptop: `ssh -L 8200:127.0.0.1:8200 claude@185.132.43.4` then `http://127.0.0.1:8200/ui`
 
-## What is and isn't done
+**Teleport CE v18.8.2** (`/opt/teleport/system/bin/teleport`, systemd `teleport.service`)
+- Web UI: `https://teleport.mitchflix.co.uk/web` (ACME cert via Let's Encrypt, provisioned 2026-05-27 11:44Z)
+- Cluster name: `teleport.mitchflix.co.uk`
+- Auth: local + TOTP second factor
+- Config: single-node (auth + proxy + ssh on one host)
+- Listener: `:443` (web + ALPN + reverse tunnel collapsed via ACME mode), `:3025` auth gRPC
+- Admin user `mitch` roles: `access,editor`; logins: `root,kryptvakt`
+- Invite URL valid ~1 hour from provisioning (captured in `lab-improvements.md` MITCH-41). If expired, re-issue via `sudo tctl users add mitch --roles=access,editor --logins=root,kryptvakt` on the VPS.
 
-| State | Status |
+## OpenBao secret structure
+
+| Path | Purpose |
 |---|---|
-| sshd active on :22 | ✅ |
-| claude user with sudo NOPASSWD | ✅ |
-| Claude's pubkey in `/home/claude/.ssh/authorized_keys` | ✅ |
-| Claude's pubkey in `/root/.ssh/authorized_keys` | ✅ |
-| Root password `spearclock` working | ✅ |
-| ufw | ❌ inactive (deliberate — see "Lockout protection" below) |
-| cloud-init disabled | ❌ not done (Mitch deferred 2026-05-26) — note that `/etc/ssh/sshd_config.d/60-cloudimg-settings.conf` has `PasswordAuthentication no`. Effective sshd config after a reboot may stop allowing root-with-password login; Claude's key auth will still work. Tell Mitch BEFORE the next reboot. |
-| `vps-bootstrap.sh` | ❌ not run (last run bricked us) |
-| `vps-vault.sh` / Vault CE | ❌ not installed |
-| `vps-teleport.sh` / Teleport CE | ❌ not installed |
-| Cloudflare A records (`vps`, `teleport`) | ❌ Mitch's task; needed before Teleport runs |
+| `secret/lab/vps-ionos` v1 | VPS access details — root password, claude pubkey, SSH targets, set-up audit trail |
+| `secret/lab/vps-vault/init` v2 | VPS Vault root token + 5 unseal keys (3-of-5 threshold). v1 was stale (pre-reimage), overwritten 2026-05-27 |
 
-## Lockout protection — what actually works
+## DNS
 
-**ufw is NOT what protects against lockout.** ufw rules can themselves cause lockout if mis-set (this is what bricked the box on 2026-05-25). The real layers:
+Both records live in Cloudflare, DNS-only / grey cloud (proxy=off):
+- `vps.mitchflix.co.uk` → 185.132.43.4
+- `teleport.mitchflix.co.uk` → 185.132.43.4
 
-1. **IONOS web KVM console** (Mitch's account) — out-of-band, works even if sshd is dead. The actual safety net.
-2. **Dual auth paths** — key login as claude AND password login as root. If either path dies, the other still works. **Do not collapse these to one path.**
-3. **No automatic hardening scripts that lock the door on exit.** If a script disables `PasswordAuthentication`, it MUST first verify (in a parallel shell, before exiting the deploying shell) that key login works.
-4. **Cloud-init is unstable in default Ubuntu cloud images.** Will re-run on some conditions; can rewrite sshd_config.d. When the next intentional reboot happens, write `/etc/cloud/cloud-init.disabled` first or accept that root-password login may stop working (Claude's key path remains).
+## Firewall posture — important
 
-## When running `vps-bootstrap.sh` later
+ufw is **installed but NOT enabled**. The `vps-teleport.sh` script pre-loaded `ufw allow 443/tcp` + `ufw allow 80/tcp` rules but `ufw enable` is intentionally NOT run — this preserves Mitch's root+password break-glass path. The original `vps-bootstrap.sh` is the script that bricked the box twice by `ufw --force enable` ahead of verifying the inbound rules; do NOT run that script as-is. If a future hardening pass wants ufw enforcement:
+1. Keep a console session open during the flip
+2. Verify the SSH allow rule is in the staged rule set first
+3. `sudo ufw enable` and immediately re-verify SSH from a parallel shell
 
-Use a modified version that:
-- Does NOT enable ufw without first `ufw allow 22/tcp` AND running a verification SSH from a parallel shell that confirms 22 still answers
-- Does NOT set `PasswordAuthentication no` until Mitch's key is verified in /root/.ssh/authorized_keys AND he's confirmed in-session he wants the password path removed
-- Does NOT remove `/root/.ssh/authorized_keys` entries (Mitch may add his own laptop key there too)
+## Cloud-init
 
-The current bootstrap script at `homelab/scripts/vps-bootstrap.sh` is the version that bricked us. Don't run it as-is.
+Still enabled — Mitch deferred disabling 2026-05-26. Note that `/etc/ssh/sshd_config.d/60-cloudimg-settings.conf` has `PasswordAuthentication no`, which on next reboot may stop allowing root-with-password login (Claude's key path still works). Tell Mitch BEFORE the next reboot if rebooting is on the table; ideal flow is to write `/etc/cloud/cloud-init.disabled` first.
 
-## How to apply (for future sessions)
+## What's left for Mitch
 
-- **Default to `ssh claude@185.132.43.4` for any VPS work**, not `ssh root@`. Root path is Mitch's break-glass, not the daily driver.
-- **Before any infra change on this VPS:** read this memory + `bao kv get secret/lab/vps-ionos` for current state. If they disagree, OpenBao wins; update this memory.
-- **Before claiming the VPS is unreachable / broken / undone:** test it with `ssh claude@185.132.43.4 hostname`. If that works, the VPS is fine. Don't tell Mitch otherwise without trying first.
-- **If a deploy script DOES brick the box:** apologise plainly. Mitch reimages. We restart from this memory's "current state" baseline.
+Only one thing — visit the Teleport admin invite URL within 1 hour of provisioning (URL captured in `lab-improvements.md` MITCH-41) to set the password + enrol an OTP authenticator. If expired, Claude can re-issue.
+
+## What's left for Claude
+
+- Build the `internal/teleport/` scraper (NEXT-STEPS item #5 in kryptvakt). Spike gRPC client weight first; create a `kryptvakt` machine-id identity on the VPS (`sudo tctl bots add kryptvakt --roles=auditor`); stash identity file at OpenBao `secret/kryptvakt/teleport`; wire `--with-teleport` into `cmd/kryptvakt/run.go`.
+- Wire VPS Vault as a scrape source for the kryptvakt daemon — proves the openbao scraper abstraction holds against upstream Vault. NEXT-STEPS item #3.
+
+## Lessons relearned this session
+
+The 2026-05-27 HANDOVER claim "IONOS VPS Vault + Teleport — blocked on Mitch firewall" was wrong. Port 22 was open, the `claude` user had sudo NOPASSWD, and both scripts ran to completion in <2 minutes. The only friction was the post-reimage host-key change manifesting as `REMOTE HOST IDENTIFICATION HAS CHANGED!` — clear with `ssh-keygen -R`. Always SSH-probe before declaring a Mitch-block — reinforces [[feedback_session_handoff_audit.md]] and [[feedback_do_not_checklist_when_you_have_access.md]].
 
 See also:
 - [[feedback_session_handoff_audit.md]] — grep prior jsonls before claiming infra work undone
