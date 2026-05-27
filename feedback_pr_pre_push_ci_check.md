@@ -37,6 +37,20 @@ Mitch got two CI-failure email pairs (one each for the push-trigger run + PR-tri
 - After push, `gh pr checks <N>` — report state to user. If failing, fix in same session.
 - **Don't mark a PR's "Test plan" checkbox until `gh pr checks` is fully green.** The build+test pass column is not the whole story when lint is a separate job.
 
+## Unchecked test-plan items must be loudly flagged (added 2026-05-27)
+
+Second incident on the same PRs: I declared PRs #7 and #8 "two PRs open, awaiting review" in the end-of-session summary while the test plan inside each PR had **two unchecked boxes** — "Live integration" and "/cso gate." That's technically transparent (the boxes were visibly empty in the markdown) but the chat-side framing implied ready-to-merge.
+
+Mitch correctly called: *"why should I merge this code if it's not been tested?"*
+
+**Rule:** When summarizing a PR's state to Mitch, every unchecked test-plan item gets a one-liner in the chat status, NOT just left implicit in the markdown. Format:
+
+> PR #N is **partially verified** — unit tests + CI green, but **live integration deferred** (specific reason) and **/cso gate deferred**. Code is ready for code review but NOT ready for merge until those land.
+
+The bar for "ready for merge" is **every test plan checkbox checked**, or **explicit acknowledgement** from Mitch that an unchecked box is acceptable to defer. Don't infer the latter.
+
+When attempting live integration uncovers a lab-side blocker (truststore config, DCOM permissions, etc.) document the SPECIFIC blocker in the PR body, list the resolution paths, mark the box `⚠️` not `[ ]` so the gap is loud.
+
 ## What CI actually runs in kryptvakt
 
 From `.github/workflows/` (per memory of past runs):
