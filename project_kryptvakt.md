@@ -1,90 +1,74 @@
 ---
-name: Kryptvakt Project
-description: Unified HSM monitoring product — Go Prometheus exporters for CipherTrust, Luna, PayShield. Phases 0–4 all merged to main; only active build project
-type: project
-originSessionId: 351b90a3-9068-4f06-9fc0-e0a7e6205ed8
+name: kryptvakt-project
+description: Unified HSM/PKI/SSH monitoring product. Phase 2m runtime-truth hardening closed; Heimdall Slice 2 live (PR
+metadata: 
+  node_type: memory
+  type: project
+  originSessionId: f3c858c2-bb03-418f-aded-42631999aaab
 ---
-Kryptvakt is Mitch's ONLY active build project. Lab has been fully refocused on it (day-trading, absorb-the-borg, weather-app all archived).
 
-**Why:** Mitch is a cryptography/HSM infrastructure engineer (8 yrs). This connects his professional domain to the lab and is the candidate for going commercial.
+Kryptvakt is Mitch's ONLY active build project. The lab has been refocused on it since 2026-05-13 (day-trading, absorb-the-borg, weather-app archived).
+
+**Why:** Mitch is a cryptography/HSM infrastructure engineer (8 yrs). Connects his professional domain to the lab; commercial candidate post-relocation + Swedish AB (see [[feedback_kryptvakt_email_gate]]).
 
 ## Repo
+- **Remote:** `git@github.com:kryptvakt/kryptvakt.git` (the `kryptvakt` GitHub org)
+- **Local:** `/home/mitch/workshop/kryptvakt/` on the laptop (NOT `~/workspace/`); also at `~/workspace/kryptvakt/` on VM 108 (VM-side path is unchanged)
+- Trunk: `main`; long-lived feature branch `phase-2m-runtime-truth-hardening` is the active integration branch
+- Single `cmd/kryptvakt` cobra binary + `internal/{heimdall,db,license,audit,driver,scrapers/*,ui,...}`
 
-- **Remote:** `git@github.com:kryptvakt/kryptvakt.git` (the `kryptvakt` GitHub org, not `mitchmclellan/`)
-- **Local:** `/home/mitch/workspace/kryptvakt/` on the laptop; also cloned on pve
-- Phase 1 + Phase 2 cmd binaries both scaffolded: `cmd/ct-exporter`, `cmd/luna-exporter`, `cmd/kryptvakt-ui`
-- Internal modules: `internal/{ciphertrust,config,db,fixtures,model}`
+## Live state on VM 108 (2026-06-01)
+- `kryptvakt.service` active. Binary at `/home/mitch/workspace/kryptvakt/bin/kryptvakt` (May 28 build = Slice 2). Service is single-process with all workloads as goroutines.
+- 9 sources in the canonical model (`sources` table):
+  | id | flavour | vendor | endpoint | tier | rotation | last_poll |
+  |----|---------|--------|----------|------|----------|-----------|
+  | 1 | monitoring | thales-ct | https://192.168.50.109 | tier-1 | 365 | complete |
+  | 2 | monitoring | thales-luna | softhsm:?token=kryptvakt-dev | tier-0 | 365 | **partial** |
+  | 3 | pki | openbao-pki | http://192.168.50.107:8200/pki | tier-1 | 90 | complete |
+  | 4 | ssh | openssh | (4 LAN hosts) | tier-0 | 365 | complete |
+  | 5 | pki | step-ca | https://localhost:9000 | tier-2 | 365 | complete |
+  | 6 | pki | hashicorp-vault | http://127.0.0.1:18200/pki (via autossh tunnel to VPS) | tier-1 | 90 | complete |
+  | 7 | pki | adcs | https://winsrv-adcs.mitchflix.co.uk:5986/wsman | tier-0 | 90 | complete |
+  | 8 | ssh | openssh | (duplicate of 4 with reordered targets) | tier-0 | 365 | complete |
+  | 9 | pki | ejbca | https://192.168.50.110:8443/ejbca | tier-1 | 90 | complete |
+- Heimdall runs (`heimdall_runs` table): 5 total, 4 succeeded, 1 failed (smoke run #1 from Slice 2 night). LLM mode = gpt-4o (~10s/run, ~2.7k tokens), deterministic mode ~300ms.
+- Env files under `/etc/kryptvakt/`: ct-exporter.env, luna-exporter.env, ui.env, audit.env, openai.env, pki.env, vault-ce.env, stepca.env, ssh.env, adcs.env, ejbca.env. ADCS + EJBCA wired with grounding metadata via `KRYPTVAKT_<SOURCE>_GROUNDING` JSON envs.
 
-## Phase status (as of 2026-05-19)
-
-| Phase | Description | Status |
-|---|---|---|
-| 0 | Repo scaffold, Go modules, fixture pattern, CI on GitHub Actions | ✅ done |
-| 1 | CipherTrust Manager exporter vs VM 109 | ✅ done — was standalone `ct-exporter.service`, now subsumed by Phase 1d unified `kryptvakt.service` |
-| 2 | Luna PKCS#11 exporter vs SoftHSM2 | ✅ done — was standalone `luna-exporter.service`, now subsumed by Phase 1d unified `kryptvakt.service` |
-| 3 | HTMX inventory UI, SQLite-backed | ✅ done — was standalone `kryptvakt-ui.service`, now subsumed by Phase 1d unified `kryptvakt.service` |
-| 4 | docker-compose + OpenBao credential injection | ✅ done as packaging PR; never deployed. Superseded by Phase 1d unified binary approach. |
-| 1b | Canonical model + driver framework + license gate + audit chain + reconciliation + lifecycle retirement + unified `kryptvakt` cobra binary | ✅ merged to main `cab16fc` on 2026-05-19. 16 lane commits, 4 /cso passes. |
-| 1c | UI read-path cutover (ListDevices+derived Status) + admin auth refactor (appliance default + change on first login) + cookie auto-detect + sign-out display fix + migration 0004 drops legacy hsms | ✅ merged to main `e692c55` on 2026-05-19. 6 commits. devices+sources is the SOLE inventory source of truth; hsms table dropped. |
-| 1d step 1 | `kryptvakt run --with-ct --with-luna --with-ui` (`--all`) subsumes the three standalone binaries as concurrent goroutines in one process. License loading degrades gracefully on dev/lab builds (no embedded pubkey). | ✅ on branch `phase-1d-run-scrapers` (`c1e87e3` → `c7c1bce` → `2c1945e`), deployed to VM 108 as single systemd unit `kryptvakt.service`. Old three units stopped + disabled (binaries kept for rollback). |
-
-Trunk is `main`. Feature branches deleted from origin + local after merge: `phase-1b-canonical-model` (2026-05-19), `phase-1c-ui-cutover` (2026-05-19). Currently open: `phase-1d-run-scrapers` (pending merge). Naming convention: `feat/<thing>`, `fix/<thing>`, `phase-N-<thing>`.
-
-ADRs shipped: ADR-001 (container as product, multi-protocol ingest, quorum scaffold, license gate), ADR-002 (single-admin UI auth — **evolved 2026-05-19 to appliance default + change on first login; see below**), ADR-003 (canonical model + flavour taxonomy + three-layer storage + driver interface, 2026-05-18).
-
-**Audit signer V1 posture (decided 2026-05-19):** Phase 1b ships an in-process file-backed Ed25519 SidecarSigner at `internal/audit/filesigner.go`, NOT the kryptvakt-audit co-process binary the design called for under /cso F-4. The interface (`SidecarSigner`/`SidecarReader`) is stable so the co-process swap is a drop-in; the V1 posture trades F-4 OS-level user separation for shipping speed. Future sessions: do NOT propose ripping out `filesigner.go` — propose ADDING `cmd/kryptvakt-audit/` alongside.
-
-**ADR-002 evolution — UI admin auth (merged to main 2026-05-19 as part of `e692c55`):** Standard appliance pattern: default `admin:admin`, force change on first login via a SQLite-backed bcrypt hash (migration `0003_ui_admin`, single-row CHECK id=1, `is_default` flag). The daemon seeds the row on first startup; `requireSession` middleware force-redirects to `/change-password` while `is_default=1`. `KRYPTVAKT_UI_ADMIN_PASSWORD` env is OPTIONAL — when set, used as the seed value instead of `"admin"`; once changed via the UI, env is ignored. Future sessions: do NOT propose reverting to env-var-only or OpenBao-templated auth — see `feedback_kryptvakt_appliance_auth.md`.
-
-**Cookie Secure auto-detect (merged with Phase 1c):** `setSessionCookie` reads request scheme from `r.TLS` / `X-Forwarded-Proto` and sets the Secure flag accordingly. `cfg.CookieSecure=true` remains as the explicit operator override. Prevents the bug class where direct-HTTP-IP deployments silently drop sessions because Secure cookies require HTTPS.
-
-**Production deployment on VM 108 (as of 2026-05-19, after Phase 1d step 1):**
-- Single systemd unit: `kryptvakt.service` runs `~/workspace/kryptvakt/bin/kryptvakt run --all` (EnvironmentFile loads `/etc/kryptvakt/{ct-exporter,luna-exporter,ui}.env`)
-- Workloads in-process: CT scraper (:9110), Luna scraper (:9111), UI (:9120). All share one SQLite at `/var/lib/kryptvakt/kryptvakt.db`
-- Three old units (`ct-exporter`, `luna-exporter`, `kryptvakt-ui`) stopped + disabled; binaries kept at `~/workspace/kryptvakt/bin/*.pre-1c-final` for rollback
-- `ui.env`: `KRYPTVAKT_UI_ADMIN_PASSWORD` commented out (Mitch changed it via UI); `KRYPTVAKT_UI_COOKIE_SECURE=false` (lab HTTP-only deploy; auto-detect makes this a no-op but it's explicit). Backups at `ui.env.pre-1c.bak`
-- `hsms` table dropped (migration 0004 applied); current tables: audit_chain, cert_key_bindings, cert_revocations, certificates, cross_source_links, devices, events, keys, licenses, partitions, policies, pqc_assessments, schema_migrations, sources, ui_admin, verifier_state
-
-**Active branch posture:** Phase 1c merged. `phase-1d-run-scrapers` open with 3 commits (unified daemon + graceful license-degrade + docs); awaiting visual verify before merge. Next-priority queued items (per kryptvakt/NEXT-STEPS.md): license-gate wiring around scraper Poll calls; deprecate `cmd/ct-exporter` / `cmd/luna-exporter` / `cmd/kryptvakt-ui` after unified-binary uptime proves out; scraper retirement integration; `kryptvakt-audit` co-process binary (/cso gated).
+## Phase status (current as of 2026-06-01)
+- ✅ Phase 0–1d: legacy CT/Luna/UI subsumed into unified `kryptvakt run --all` binary
+- ✅ Phase 1b/1c: canonical model, driver framework, license gate, audit chain, lifecycle retirement, appliance-style UI auth (admin:admin + force-change)
+- ✅ Phase 2: PKI flavours (OpenBao, step-ca, EJBCA), SSH flavour, AD CS (Windows)
+- ✅ Phase 2m runtime-truth hardening (closed 2026-05-27): persist-failure completeness propagation, lifecycle/audit error sentinels, MaxSources enforcement, errors.Join in runOnce, source-identity stability
+- ✅ Heimdall Slice 0 (paper prototype) + Slice 1 (env-var grounding wiring across 8 source initializers) + Slice 2 (`internal/heimdall/` package + 4 tools + playbook runner + `/heimdall` UI panel + DORA-RTS-CRYPTO playbook + LLM/deterministic modes + evidence pack)
+- 🟡 Slice 2.5 polish pending: `goldmark.WithRendererOptions(html.WithUnsafe())` to restore inline `<details>` collapsibility in UI render (download `.md` is unaffected)
+- 🟡 ADR-007 citation fix pending (draft "JC 2023 86 RTS" → in-force CDR (EU) 2024/1774, Arts 6–7)
+- 🔄 Phase 3 Heimdall reasoning expansion — see [[project_kryptvakt_handover_2026_05_31]] for 5 candidate ADRs awaiting Mitch's Monday method-extraction work
 
 ## CI
+`.github/workflows/ci.yml` — `go vet`, `go build`, `go test -race`, golangci-lint v2.12.2 (bumped 2026-05-26). Targets Go 1.25.10 via go.mod toolchain.
 
-`.github/workflows/ci.yml` on main — `go vet`, `go build`, `go test -race`, golangci-lint v1.61. Triggers on push to `main`/`phase-**`/`ci/**`/`feat/**`/`fix/**`, and on every PR.
-
-## Lab dev environment (all live)
-
-| VMID | Name | IP | Role |
-|------|------|----|------|
-| 108 | kryptvakt-dev | 192.168.50.108 | Go 1.23 + Docker + SoftHSM2 + node_exporter + Claude Code + gstack. SSH: `mitch@192.168.50.108` |
-| 109 | ciphertrust-ce | 192.168.50.109 | CipherTrust Manager CE k170v-2.11.1. Fully provisioned: admin (WebUI) + ksadmin (console) creds in OpenBao, static IP, DNS resolving, JWT issuance verified |
-| 105 | monitoring | 192.168.50.105 | Prometheus + Grafana. Both kryptvakt scrape jobs LIVE (`kryptvakt_ciphertrust` :9110, `kryptvakt_luna` :9111). 5 kryptvakt alert rules in `/etc/prometheus/rules/kryptvakt.yml` (also tracked at `homelab/prometheus/rules/kryptvakt.yml`). Grafana dashboard uid `kryptvakt-overview` at `monitoring.mitchflix.co.uk/d/kryptvakt-overview` |
-| 107 | openbao | 192.168.50.107 | Secrets. Path `secret/kryptvakt/{ciphertrust,luna,payshield,softhsm,ui}` all seeded (ui added 2026-05-15) |
-| 106 | pihole | 192.168.50.106 | DNS — `kryptvakt-dev.mitchflix.co.uk` → .108, `ciphertrust.mitchflix.co.uk` → .109 |
+## Lab dev environment (live)
+See [[project_lab_state]] for the full inventory. Kryptvakt-relevant subset:
+- VM 108 kryptvakt-dev → daemon, SoftHSM2, step-ca, autossh tunnel to VPS Vault
+- VM 109 ciphertrust-ce → CT Manager scrape target
+- VM 111 winsrv-adcs → AD CS scrape target (HTTPS:5986 + mTLS)
+- LXC 105 monitoring → Prometheus + Grafana + Loki (kryptvakt observability spine)
+- LXC 107 openbao → secrets at `secret/kryptvakt/{ciphertrust,luna,payshield,softhsm,ui,adcs,ejbca,vault-ce,teleport}`
+- LXC 110 pki-lab → Vault dev + EJBCA CE Docker containers (scrape targets)
+- VPS 185.132.43.4 → upstream Vault CE + Teleport CE (Vault scraped via autossh tunnel)
 
 ## Working knowledge
-
-- ksadmin SSH key: `~/.ssh/id_rsa_ciphertrust` (on both pve and laptop). Needed for direct ksadmin access — the CE WebUI requires SSH pubkey upload before WebUI auth completes.
-- CipherTrust admin password was rotated from `admin/admin` via `PATCH /api/v1/auth/changepw` (not the WebUI page).
-- See `reference_ciphertrust_api.md` for which CT Manager CE API endpoints actually work (many vendor-doc paths 404 on v2.11.1).
-- See `reference_kryptvakt_session_bootstrap.md` for the load-order at session start (homelab CLAUDE.md → lab-infra → lab-improvements → kryptvakt CONTEXT + NEXT-STEPS).
-
-## Dev workflow (gstack-driven)
-
-Sprint pipeline per kryptvakt/CLAUDE.md:
-1. `/office-hours` — product interrogation, new features
-2. `/autoplan` — CEO + eng + design review
-3. Build
-4. `/review` — code audit; `/cso` for credential/TLS/protocol code
-5. `/ship` — PR + push
-
-OpenClaw on ArcAiVM has gstack dispatch routing — `"run office hours for kryptvakt"` via Telegram triggers the full pipeline.
+- ksadmin SSH key: `~/.ssh/id_rsa_ciphertrust` (on both pve and laptop)
+- CT API surface: see [[reference_ciphertrust_api]] (vendor docs lie about which paths exist)
+- Session bootstrap order: see [[reference_kryptvakt_session_bootstrap]]
+- MVP1 principles (ADR-001): see [[project_kryptvakt_mvp1_principles]]
+- Loki on LXC 105 is load-bearing for kryptvakt: see [[project_kryptvakt_loki_observability]]
 
 ## Hard rules
-
-- No outreach to Stu/Saba/HSM buyers until Mitch says so. See `feedback_kryptvakt_email_gate.md` — this rule **overrides** anything `NEXT-STEPS.md` or design docs say about outreach.
-- All secrets via OpenBao — no hardcoded creds in exporter code.
-- `/cso` is mandatory before any PR that touches credential loading, TLS, or HSM protocol handling.
+- No outreach to Stu/Saba/HSM buyers until post-move + Swedish AB exists ([[feedback_kryptvakt_email_gate]]) — overrides any NEXT-STEPS or design-doc text suggesting outreach
+- All secrets via OpenBao — no hardcoded creds
+- `/cso` + `scripts/multi-audit.sh` two-pass gate mandatory before PRs touching credential loading, TLS, HSM/PKI protocol handling, audit-chain sidecar permissions, scope_config validation (per `kryptvakt/CLAUDE.md`)
+- Same-day codex challenge of new strategic ADRs ([[feedback_codex_same_day_adr_challenge]])
 
 ## How to apply
-
-For new kryptvakt work, also read `workspace/kryptvakt/{CLAUDE.md,CONTEXT.md,NEXT-STEPS.md,docs/MVP1-design.md}` — kryptvakt is its own repo with its own roadmap doc, not derivable from the homelab framework alone.
+For new kryptvakt work, also read `workshop/kryptvakt/{CLAUDE.md,CONTEXT.md,NEXT-STEPS.md,docs/MVP1-design.md}` — kryptvakt has its own roadmap doc, not derivable from the homelab framework.

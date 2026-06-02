@@ -21,12 +21,12 @@ Heimdall will need, provided the RAM is sorted first.
 
 | Component | Today | Heimdall dev role |
 |---|---|---|
-| Ollama (llama3.1:8b + qwen2.5-coder:7b) | 0% GPU utilization, models downloaded but unused | LLM endpoint for playbook iteration; OpenAI-compatible tool-use; iterate dialogue patterns against Qwen for £0 instead of burning Anthropic API tokens |
+| Ollama (llama3.1:8b + qwen2.5-coder:7b) | **Running** (`/usr/bin/ollama serve` since 2026-05-09, currently idle — no models loaded into RAM) | LLM endpoint for playbook iteration; OpenAI-compatible tool-use; iterate dialogue patterns against Qwen for £0 instead of burning Anthropic API tokens |
 | RTX 3050 8GB (passthrough) | Idle | Required for Ollama inference at usable speed; can drive up to ~14B 4-bit-quant models |
 | open-webui | Mitch's personal AI chat surface | Pattern reference (NOT a copy) for the kryptvakt-native Heimdall chat panel; ALSO usable as a dev testbed — register Heimdall's tool-use surface as OpenAI function schemas, point at local Ollama, iterate the playbook → response loop with real chat UX |
 | Neo4j | Set up to "drive determinism into the stack" | **v1.5+ knowledge-graph substrate for multi-framework reasoning** — encode compliance-framework requirements as graph nodes, relationship traversals replace multi-step tool-call chains. NOT for v1 (focused SQLite tools sufficient for single-framework PCI-DSS audit prep). |
 | arcai-bot Telegram interface | Direct Anthropic Sonnet API | Pattern for Heimdall's customer-side chat surface (Telegram/Slack/Teams bot for ops on mobile) |
-| OpenClaw orchestrator | Configured Qwen-primary + Sonnet-fallback, currently bypassed by bot | Pattern for Heimdall's playbook-router (dispatch operator question to right playbook) |
+| ~~OpenClaw orchestrator~~ | **Retired 2026-05-26** (audit found bot bypassed it entirely, main agent dormant 16 days). systemd unit deleted; `~/.openclaw/` config kept as archive only. | Pattern is preserved in design notes only — for Heimdall's playbook-router (dispatch operator question to right playbook), build fresh from the ADR-004 tool-surface design, not from OpenClaw. |
 
 ## Heimdall v1 vs v1.5+ architecture
 

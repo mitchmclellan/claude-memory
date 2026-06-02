@@ -1,37 +1,46 @@
 ---
 name: dns-and-internal-routing-architecture
-description: "How internal *.mitchflix.co.uk routing works — Pi-hole authoritative + NRPT on Windows + static resolv.conf on WSL. Hosts-file mirror retired 2026-05-27."
-metadata:
+description: How internal *.mitchflix.co.uk routing works — Pi-hole authoritative for the lab. Laptop-side resolution config was retired with the WSL→native Ubuntu migration (2026-06-01); replacement on native Ubuntu is OPEN.
+metadata: 
   node_type: memory
   type: project
-  originSessionId: 6200e8af-5342-4e69-8b29-45bf060a1140
+  originSessionId: f3c858c2-bb03-418f-aded-42631999aaab
 ---
 
-All `*.mitchflix.co.uk` subdomains are internal-only — Mitch wants **zero internal hostnames in public DNS** (public surface lives on the IONOS VPS only). Reconfirmed 2026-05-26.
+All `*.mitchflix.co.uk` subdomains are internal-only — Mitch wants **zero internal hostnames in public DNS** (public surface lives on the IONOS VPS only).
 
-## Two layers, one source of truth (post-2026-05-27)
+## Authoritative source: Pi-hole on LXC 106
 
-1. **Pi-hole (LXC 106, 192.168.50.106)** — **authoritative** for the lab hostname list AND recursive forwarder for everything else. Single canonical file at `/etc/pihole/hosts/mitchflix-local.conf` (23 lines, 25 names as of 2026-05-27 — `dns`/`pihole` and `winsrv-adcs`/`adcs` share lines). Edit-and-SIGHUP cycle: `pkill -HUP pihole-FTL` after changes.
+**Pi-hole (LXC 106, 192.168.50.106)** — authoritative for the lab hostname list AND recursive forwarder for everything else. Single canonical file at `/etc/pihole/hosts/mitchflix-local.conf`. Edit-and-SIGHUP cycle: `sudo pkill -HUP pihole-FTL` after changes.
 
-2. **Mitch's laptop (MitchIdeaPad, Win11 + WSL2 Ubuntu 24.04)** — both halves point at Pi-hole, *without* touching the router DHCP DNS chain:
-   - **Windows side (Chrome, browsers):** NRPT rule `*.mitchflix.co.uk → 192.168.50.106`. Set 2026-05-27 via `Add-DnsClientNrptRule -Namespace ".mitchflix.co.uk" -NameServers "192.168.50.106"`. Verify: `Get-DnsClientNrptRule | Where-Object Namespace -like "*mitchflix*"`. Survives reboots, network changes, Wi-Fi reconnects.
-   - **WSL side (terminal, curl, dig):** static `/etc/resolv.conf` pointing at `192.168.50.106` primary + `1.1.1.1` fallback. `[network] generateResolvConf = false` in `/etc/wsl.conf` prevents WSL from auto-regenerating it. Independent of Windows DNS — goes straight to Pi-hole on the LAN.
+PVE host itself uses Pi-hole as DNS (verified by [[feedback_testing_paths]]).
 
-The hosts-file mirror workflow (managed block in Windows + WSL hosts files, kept in sync via `Update-MitchflixHosts.ps1`) was **retired 2026-05-27**. Reason: every new hostname required editing three files + running an elevated PowerShell, and the Windows block kept silently getting #-commented out by something (Windows Update? security tool? hand-edits). NRPT routes the namespace transparently; one Pi-hole edit ripples everywhere.
+## Laptop side — wired 2026-06-02 via systemd-resolved drop-in
 
-## Why NRPT and not "just set the laptop's DNS to Pi-hole"
+On native Ubuntu 26.04 the laptop uses **systemd-resolved**. Default DHCP-provided DNS is `192.168.50.1` (the Asus router), which does NOT forward `*.mitchflix.co.uk` queries to Pi-hole (because making Pi-hole the router's primary DNS halves WAN speed; tested + reverted 2026-05-16).
 
-The naive answer is "configure Windows adapter DNS = 192.168.50.106". That works at home but **fails on every other network** — coffee shops, hotels, conference Wi-Fi. NRPT is namespace-specific: `*.mitchflix.co.uk` goes to Pi-hole, everything else uses whatever DHCP DNS the current network provides. At home you get internal + public resolution; on the road internal lookups fail fast (~2s timeout, route unreachable) and public works perfectly.
+**Solution (installed 2026-06-02):** per-domain DNS routing rule in systemd-resolved.
+
+```
+# /etc/systemd/resolved.conf.d/mitchflix.conf
+[Resolve]
+DNS=192.168.50.106
+Domains=~mitchflix.co.uk
+```
+
+The leading `~` makes `mitchflix.co.uk` a **routing-only domain** (not added to the search list). Only queries matching `*.mitchflix.co.uk` are sent to Pi-hole. Everything else continues using whatever DHCP/router DNS the current network provides. On a non-home network, `*.mitchflix.co.uk` lookups fail fast (~2s timeout) without breaking public name resolution.
+
+Apply: `sudo systemctl restart systemd-resolved`. Verify: `resolvectl status` shows a `Global` block with `DNS Servers: 192.168.50.106` + `DNS Domain: ~mitchflix.co.uk`.
+
+**Bootstrap independence:** if Pi-hole ever moves to a new LAN IP, update both the Cloudflare `dns.mitchflix.co.uk` A record AND this drop-in's `DNS=`. The Cloudflare record is the canonical bootstrap (anyone setting up a new client can resolve it externally and learn the LAN IP). systemd-resolved itself wants an IP, not a hostname, so the laptop config can't auto-track Cloudflare changes.
+
+**What broke the post-migration setup originally (2026-06-01 → 2026-06-02 morning):** Nothing dramatic — the WSL-era setup (NRPT on Windows + static `/etc/resolv.conf` in WSL) was wiped with Windows, and no native-Ubuntu equivalent was created during the migration. Chrome carried internal hostnames in its DNS cache for a few hours after first run, then the cache expired and `DNS_PROBE_POSSIBLE_FINISHED_NXDOMAIN` started showing up. The freshness audit on 2026-06-01 evening did surface this (`getent hosts kryptvakt.mitchflix.co.uk` was already returning NOTFOUND at audit time); Chrome was just still hitting cache. Drop-in now closes the gap.
+
+**Chrome DNS cache:** Chrome caches DNS independently of systemd-resolved. After applying this drop-in or any DNS change, clear via `chrome://net-internals/#dns` → "Clear host cache", or just close + reopen the affected tab.
 
 ## Why not router-DHCP-DNS = Pi-hole
 
-Tried 2026-05-16, reverted same day. **Asus router halves WAN speed when LAN-side DNS is primary** because HW NAT / CTF acceleration disables. Confirmed reproduction. NRPT-on-client avoids this — only Mitch's laptop talks to Pi-hole; the router still hands out 1.1.1.1 or ISP DNS to other devices.
-
-## WSL belt-and-braces
-
-The WSL `/etc/hosts` managed block (`# BEGIN mitchflix.co.uk ... # END mitchflix.co.uk`) is **kept** as a fallback. If Pi-hole dies, WSL CLI tools (`curl`, `ssh`, `dig`) still resolve internal hosts via the static hosts file. Zero cost to keep; non-zero value when Pi-hole is in maintenance. Update when adding a new hostname — same one-liner as Pi-hole.
-
-The **Windows** hosts file managed block was stripped 2026-05-27 (backup at `C:\Windows\System32\drivers\etc\hosts.bak-nrpt-cleanup-*`). NRPT supersedes it. Chrome and Windows apps now resolve via DNS only.
+Tried 2026-05-16, reverted same day. **Asus router halves WAN speed when LAN-side DNS is primary** because HW NAT / CTF acceleration disables. Confirmed reproduction. Solution has to live on the client, not the router.
 
 ## Cloudflare DNS (public zone)
 
@@ -41,25 +50,21 @@ The **Windows** hosts file managed block was stripped 2026-05-27 (backup at `C:\
 
 ## `kryptvakt.{com,io,dev}` — stays at GoDaddy
 
-Parked, WHOIS-privacy. **Do not migrate to Cloudflare until launch** — the migration is part of the `kryptvakt/REFERENCE.md` Step 6.5 post-AB activation runbook. Pre-migrating gains nothing; stealth-build rule trumps registrar convenience. Reconfirmed 2026-05-26.
+Parked, WHOIS-privacy. **Do not migrate to Cloudflare until launch** — the migration is part of the `kryptvakt/REFERENCE.md` Step 6.5 post-AB activation runbook.
 
-## Adding a new internal hostname (the new routine)
+## Adding a new internal hostname
 
-1. SSH to LXC 106: edit `/etc/pihole/hosts/mitchflix-local.conf`, append the line.
-2. `sudo pkill -HUP pihole-FTL` on LXC 106.
-3. (Optional belt-and-braces) Append the same line to WSL `/etc/hosts` managed block on MitchIdeaPad.
+1. SSH `mitch@192.168.50.10`, then `sudo pct exec 106 -- bash -c "echo '<ip> <fqdn>' >> /etc/pihole/hosts/mitchflix-local.conf"`.
+2. `sudo pct exec 106 -- pkill -HUP pihole-FTL`.
+3. PVE host + clients pointed at Pi-hole resolve immediately. Laptop still needs the replacement listed above to be wired.
 
-That's it. Chrome resolves on next page load (Windows DNS Client cache TTL'd by Pi-hole). WSL resolves on next query.
-
-**No more editing three files. No more PowerShell scripts. No more sync drift.**
-
-## Canonical hostname list (2026-05-27)
+## Canonical hostname list (2026-06-01, ground truth from Pi-hole)
 
 Traefik-fronted (→ 192.168.50.2): `ai`, `kryptvakt`, `monitoring`, `nas`, `neo4j`, `openbao`, `openclaw`, `plex`, `portainer`, `prometheus`, `traefik`, `weather`
 
 Host-direct:
 - `pve.mitchflix.co.uk` → 192.168.50.10
-- `monitoring-host.mitchflix.co.uk` → 192.168.50.105 (LXC 105 direct, not Grafana — that's `monitoring`)
+- `monitoring-host.mitchflix.co.uk` → 192.168.50.105
 - `pihole.mitchflix.co.uk` / `dns.mitchflix.co.uk` → 192.168.50.106
 - `arcaivm.mitchflix.co.uk` → 192.168.50.196
 - `nas-host.mitchflix.co.uk` → 192.168.50.24
@@ -74,14 +79,4 @@ Tier 1 PKI lab (LXC 110):
 Windows Server AD CS (VM 111):
 - `winsrv-adcs.mitchflix.co.uk` / `adcs.mitchflix.co.uk` → 192.168.50.90
 
-## Diagnosing NXDOMAIN on Mitch's laptop (post-NRPT)
-
-1. **Confirm NRPT rule still present:** `Get-DnsClientNrptRule | Where-Object Namespace -like "*mitchflix*"`. If empty, re-add with the `Add-DnsClientNrptRule ...` one-liner above.
-2. **Confirm Pi-hole reachable:** `Test-NetConnection 192.168.50.106 -Port 53`. If unreachable, check Pi-hole service on LXC 106.
-3. **Confirm Pi-hole has the record:** `ssh mitch@192.168.50.10 'sudo pct exec 106 -- grep <hostname> /etc/pihole/hosts/mitchflix-local.conf'`. If missing, add it + SIGHUP pihole-FTL.
-4. **Chrome resolver cache:** `chrome://net-internals/#dns` → Clear host cache. (Chrome caches independently of Windows DNS Client.)
-5. **Windows DNS cache:** `ipconfig /flushdns` from any PowerShell.
-
-For WSL: check `/etc/resolv.conf` is still `192.168.50.106` primary. If WSL regenerated it after a `wsl --shutdown`, confirm `[network] generateResolvConf = false` is in `/etc/wsl.conf`.
-
-See also: [[reference_laptop_env.md]] for WSL2/NodeSource setup; [[feedback_testing_paths.md]] for "always simulate Mitch's actual access path" rule.
+See also: [[reference_laptop_env]] for native-Ubuntu post-migration toolchain; [[feedback_testing_paths]] for "always simulate Mitch's actual access path" rule.

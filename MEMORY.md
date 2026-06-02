@@ -1,5 +1,6 @@
 # Memory Index
 
+- [Laptop Migration 2026-06-01](project_laptop_migration_2026_06_01.md) — WSL→native Ubuntu; old `~/workspace` is now `~/workshop` on this laptop (read before resolving any `~/workspace` path); PVE-host workspace paths unchanged
 - [Mitch Profile](user_mitch.md) — who Mitch is, background, work style, email
 - [Work Style Feedback](feedback_workstyle.md) — act autonomously, document blockers in lab-improvements.md, don't wait
 - [Homelab Current State](project_lab_state.md) — ArcAiVM 4GB (3GB ballooned), Ollama installed but unused (RAM-bound), OpenClaw retired 2026-05-26, bot stays on Sonnet
@@ -32,6 +33,11 @@
 - [Codex same-day ADR challenge pattern](feedback_codex_same_day_adr_challenge.md) — run /codex against new strategic ADRs same-day; if 2+ premises break, supersede via new ADR rather than edit in place
 - [DORA RTS structure domain trap](reference_dora_rts_structure.md) — DORA L1 Articles ≠ JC 2023 86 RTS Articles; crypto obligations are RTS Art 6+7 mandated by DORA L1 Art 15+16
 - [Vendor portal signups pending](project_vendor_signups_pending.md) — Utimaco + Thales DPoD submitted 2026-05-26, do NOT poll Mitch; he'll volunteer when access lands
-- [Kryptvakt IONOS VPS state](project_kryptvakt_vps_ionos.md) — 185.132.43.4 hardened by prior session 2026-05-25, reimaged 2026-05-26; scripts ready to re-run once Mitch's IONOS firewall is open
+- [Kryptvakt IONOS VPS state](project_kryptvakt_vps_ionos.md) — 185.132.43.4: Vault CE + Teleport CE both active; SSH `claude@` (NOPASSWD) or `root@` (spearclock); NOT firewall-blocked — SSH-probe before claiming blocked
 - [Session handoff audit rule](feedback_session_handoff_audit.md) — before claiming infra work undone, grep prior jsonls; created after the IONOS gaslighting incident
 - [Pre-push CI check](feedback_pr_pre_push_ci_check.md) — run gofmt -l AND gh pr checks before declaring a PR ready; lint is a separate CI job from build+test
+- [Codex CLI auth modes](reference_codex_auth_modes.md) — codex defaults to chatgpt-account auth (hits free-tier 200K cap); flip to apikey mode via `codex logout` then `codex login --with-api-key` to bill against the $10 API credits
+- [WinRM cert mapping %-in-password trap](reference_winrm_cert_mapping_percent_trap.md) — WinRM internally env-expands `%X` patterns in the cert-mapping Password value; LogonUser succeeds with the same string but mapping fails STATUS_LOGON_FAILURE. Rotate to %-free password before mapping.
+- [Kryptvakt Loki on LXC 105 is load-bearing](project_kryptvakt_loki_observability.md) — VM 108 promtail ships kryptvakt.service journal here, feeds per-vendor Grafana dashboard log panels. Do NOT uninstall — finish the install if it looks half-done.
+- [Kryptvakt 2026-05-31 weekend handover](project_kryptvakt_handover_2026_05_31.md) — 5 candidate ADRs parked at kryptvakt/docs/handover-2026-05-31-design-clarifications.md; Mon 2026-06-01 Mitch brings armature pattern + playbook seeds. Don't ratify before he's in the room.
+- [PVE USB external is the SABRENT/Hitachi on /zfs1](reference_pve_usb_external_hitachi.md) — looks like SATA `sdd` in lsblk because the ASM225 bridge does ATA pass-through; use `lsusb` or `dmesg | grep -i sabrent` to confirm USB attach, not `lsblk`. Hosts the openbao-mirror.
